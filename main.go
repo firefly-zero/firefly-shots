@@ -15,6 +15,7 @@ var (
 	// Updated on input
 	appIdx     int
 	shotIdx    int = 1
+	loader     *Loader
 	shot       *firefly.Image
 	showUI     bool
 	dirty      bool = true
@@ -43,8 +44,10 @@ func update() {
 	handleBtns(newBtns)
 	oldBtns = newBtns
 	wasTouched = isTouched
-	if dirty && shot == nil {
-		loadShot(apps[appIdx], shotIdx)
+	if dirty && shot == nil && loader == nil {
+		makeLoader(apps[appIdx], shotIdx)
+	} else {
+		advanceLoader()
 	}
 }
 
@@ -52,21 +55,25 @@ func handlePad(newPad firefly.Pad) {
 	newDPad := newPad.DPad()
 	if newDPad.Left && shotIdx > 1 {
 		shot = nil
+		loader = nil
 		dirty = true
 		shotIdx -= 1
 	}
 	if newDPad.Right {
 		shot = nil
+		loader = nil
 		dirty = true
 		shotIdx += 1
 	}
 	if newDPad.Up && appIdx > 0 {
 		shot = nil
+		loader = nil
 		dirty = true
 		appIdx -= 1
 	}
 	if newDPad.Down && appIdx < len(apps)-1 {
 		shot = nil
+		loader = nil
 		dirty = true
 		appIdx += 1
 	}
@@ -81,9 +88,9 @@ func handleBtns(newBtns firefly.Buttons) {
 }
 
 func render() {
-	if !dirty {
-		return
-	}
+	// if !dirty {
+	// 	return
+	// }
 	dirty = false
 	firefly.ClearScreen(firefly.ColorWhite)
 	if len(apps) == 0 {
@@ -131,7 +138,7 @@ func listApps() []string {
 	return result
 }
 
-func loadShot(app string, idx int) {
+func makeLoader(app string, idx int) {
 	path := app + "/" + strconv.FormatInt(int64(idx), 10) + ".png"
 	png := sudo.LoadFile(path)
 	l, err := NewLoader(png)
@@ -139,15 +146,24 @@ func loadShot(app string, idx int) {
 		firefly.LogError(err.Error())
 		return
 	}
-	for {
-		s, err := l.Next()
-		if err != nil {
-			firefly.LogError(err.Error())
-			return
-		}
-		if s != nil {
-			shot = s
-			return
-		}
+	loader = l
+}
+
+func advanceLoader() {
+	if loader == nil {
+		return
+	}
+	dirty = true
+	done, err := loader.Next()
+	if err != nil {
+		firefly.LogError(err.Error())
+		loader.Close()
+		return
+	}
+	shot = loader.Image()
+	if done {
+		loader.Close()
+		loader = nil
+		return
 	}
 }

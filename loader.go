@@ -67,16 +67,20 @@ func (l *Loader) Close() {
 	_ = l.reader.Close()
 }
 
-func (l *Loader) Next() (*firefly.Image, error) {
+func (l *Loader) Image() *firefly.Image {
+	result := firefly.File{Raw: l.raw}.Image()
+	return &result
+}
+
+func (l *Loader) Next() (bool, error) {
 	_, _ = l.reader.Read([]byte{0})
 	_, err := io.ReadFull(l.reader, l.raw[l.read:l.read+120])
 	if err != nil {
-		return nil, err
+		return false, err
 	}
 	l.read += 120
 	if l.read >= len(l.raw) {
-		result := firefly.File{Raw: l.raw}.Image()
-		return &result, nil
+		return true, nil
 	}
-	return nil, nil
+	return false, nil
 }

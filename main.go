@@ -1,6 +1,9 @@
 package main
 
 import (
+	"bytes"
+	"compress/zlib"
+	"io"
 	"strconv"
 
 	"github.com/firefly-zero/firefly-go/firefly"
@@ -109,8 +112,6 @@ func parseShot(png firefly.File) *firefly.Image {
 	if png.Raw == nil {
 		return nil
 	}
-	img := make([]byte, 0)
-
 	raw := png.Raw
 	if len(raw) < 100 {
 		return nil
@@ -119,14 +120,42 @@ func parseShot(png firefly.File) *firefly.Image {
 	raw = raw[4+4+8+13:]         // skip IHDR
 	raw = raw[4+4+8+16*3:]       // skip PLTE
 	raw = raw[:len(raw)-(4+4+8)] // skip IEND
+	raw = raw[4+4:]              // skip IDAT header
+	raw = raw[:len(raw)-8]       // skip IDAT CRC32
 
-	firefly.LogDebug(strconv.FormatInt(int64(len(raw)), 10))
-	img = append(img,
-		4,      // BPP
-		0, 240, // width
-		17, // transparent color (no transparency)
-	)
-	img = append(img, raw...)
+	r, err := zlib.NewReader(bytes.NewBuffer(raw))
+	if err != nil {
+		firefly.LogError(err.Error())
+		return nil
+	}
+
+	// raw result image header
+	const headerSize = 5 + 8
+	bodySize := firefly.Width * firefly.Height / 2
+	img := make([]byte, headerSize+bodySize)
+	img[0] = 0x21                     // magic number
+	img[1] = 4                        // BPP
+	img[2] = byte(firefly.Width)      // width
+	img[3] = byte(firefly.Width >> 8) // width
+	img[4] = 255                      // transparency
+
+	// color swaps
+	var i byte
+	for i = range 8 {
+		img[5+i] = ((i * 2) << 4) | (i*2 + 1)
+	}
+
+	// pixels
+	frame, err := io.ReadAll(r)
+	_ = r.Close()
+	if err != nil {
+		firefly.LogError(err.Error())
+		return nil
+	}
+	for len(frame) != 0 {
+		img = append(img, frame[1:121]...)
+		frame = frame[121:]
+	}
 
 	result := firefly.File{Raw: img}.Image()
 	return &result

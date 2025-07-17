@@ -68,7 +68,7 @@ func (l *Loader) Close() {
 }
 
 func (l *Loader) Image() *firefly.Image {
-	result := firefly.File{Raw: l.raw}.Image()
+	result := firefly.File{Raw: l.raw[:l.read]}.Image()
 	return &result
 }
 

@@ -92,7 +92,6 @@ func render() {
 	// 	return
 	// }
 	dirty = false
-	firefly.ClearScreen(firefly.ColorWhite)
 	if len(apps) == 0 {
 		renderNoShots()
 	} else {
@@ -101,10 +100,14 @@ func render() {
 }
 
 func renderNoShots() {
+	firefly.ClearScreen(firefly.ColorWhite)
 	firefly.DrawText("no screenshots", font, firefly.Point{X: 40, Y: 40}, firefly.ColorBlack)
 }
 
 func renderShot(app string, idx int) {
+	firefly.ClearScreen(firefly.ColorBlack)
+	firefly.DrawText("Loading...", font, firefly.Point{X: 86, Y: 80}, firefly.ColorWhite)
+
 	if shot != nil {
 		firefly.DrawImage(*shot, firefly.Point{})
 	}

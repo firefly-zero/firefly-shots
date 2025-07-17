@@ -13,13 +13,18 @@ import (
 )
 
 var (
-	apps       []string
+	// Loaded on startup
+	apps []string
+	font firefly.Font
+
+	// Updated on input
 	appIdx     int
 	shotIdx    int = 1
-	font       firefly.Font
 	shot       *firefly.Image
+	showUI     bool
 	dirty      bool = true
 	wasTouched bool
+	oldBtns    firefly.Buttons
 )
 
 func init() {
@@ -31,6 +36,7 @@ func init() {
 func boot() {
 	font = firefly.LoadFile("font", nil).Font()
 	apps = listApps()
+	oldBtns = firefly.ReadButtons(firefly.Combined)
 }
 
 func update() {
@@ -38,8 +44,11 @@ func update() {
 	if !wasTouched && isTouched {
 		handlePad(newPad)
 	}
+	newBtns := firefly.ReadButtons(firefly.Combined)
+	handleBtns(newBtns)
+	oldBtns = newBtns
 	wasTouched = isTouched
-	if dirty {
+	if dirty && shot == nil {
 		loadShot(apps[appIdx], shotIdx)
 	}
 }
@@ -47,20 +56,32 @@ func update() {
 func handlePad(newPad firefly.Pad) {
 	newDPad := newPad.DPad()
 	if newDPad.Left && shotIdx > 1 {
+		shot = nil
 		dirty = true
 		shotIdx -= 1
 	}
 	if newDPad.Right {
+		shot = nil
 		dirty = true
 		shotIdx += 1
 	}
 	if newDPad.Up && appIdx > 0 {
+		shot = nil
 		dirty = true
 		appIdx -= 1
 	}
 	if newDPad.Down && appIdx < len(apps)-1 {
+		shot = nil
 		dirty = true
 		appIdx += 1
+	}
+}
+
+func handleBtns(newBtns firefly.Buttons) {
+	justPressed := newBtns.JustPressed(oldBtns)
+	if justPressed.S {
+		showUI = !showUI
+		dirty = true
 	}
 }
 
@@ -86,8 +107,19 @@ func renderShot(app string, idx int) {
 		firefly.DrawImage(*shot, firefly.Point{})
 	}
 
-	path := app + "/" + strconv.FormatInt(int64(idx), 10) + ".png"
-	firefly.DrawText(path, font, firefly.Point{X: 4, Y: 10}, firefly.ColorBlack)
+	if showUI {
+		firefly.DrawRect(
+			firefly.Point{X: -1, Y: -1},
+			firefly.Size{W: firefly.Width + 2, H: 16},
+			firefly.Style{
+				FillColor:   firefly.ColorWhite,
+				StrokeColor: firefly.ColorBlack,
+				StrokeWidth: 1,
+			},
+		)
+		path := app + "/" + strconv.FormatInt(int64(idx), 10) + ".png"
+		firefly.DrawText(path, font, firefly.Point{X: 4, Y: 10}, firefly.ColorBlack)
+	}
 }
 
 func listApps() []string {

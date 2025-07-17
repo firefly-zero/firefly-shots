@@ -12,6 +12,7 @@ var (
 	appIdx     int
 	shotIdx    int = 1
 	font       firefly.Font
+	dirty      bool = true
 	wasTouched bool
 )
 
@@ -31,15 +32,19 @@ func update() {
 	if !wasTouched && isTouched {
 		newDPad := newPad.DPad()
 		if newDPad.Left && shotIdx > 1 {
+			dirty = true
 			shotIdx -= 1
 		}
 		if newDPad.Right {
+			dirty = true
 			shotIdx += 1
 		}
 		if newDPad.Up && appIdx > 0 {
+			dirty = true
 			appIdx -= 1
 		}
-		if newDPad.Down && appIdx < len(apps) {
+		if newDPad.Down && appIdx < len(apps)-1 {
+			dirty = true
 			appIdx += 1
 		}
 	}
@@ -47,6 +52,10 @@ func update() {
 }
 
 func render() {
+	if !dirty {
+		return
+	}
+	dirty = false
 	firefly.ClearScreen(firefly.ColorWhite)
 	if len(apps) == 0 {
 		renderNoShots()

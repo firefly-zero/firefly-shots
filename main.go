@@ -139,10 +139,15 @@ func loadShot(app string, idx int) {
 		firefly.LogError(err.Error())
 		return
 	}
-	s, err := l.Next()
-	if err != nil {
-		firefly.LogError(err.Error())
-		return
+	for {
+		s, err := l.Next()
+		if err != nil {
+			firefly.LogError(err.Error())
+			return
+		}
+		if s != nil {
+			shot = s
+			return
+		}
 	}
-	shot = s
 }

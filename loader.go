@@ -12,6 +12,7 @@ import (
 
 type Loader struct {
 	raw    []byte
+	read   int
 	reader io.ReadCloser
 }
 
@@ -42,7 +43,7 @@ func NewLoader(png firefly.File) (*Loader, error) {
 	// raw result image header
 	const headerSize = 5 + 8
 	bodySize := firefly.Width * firefly.Height / 2
-	img := make([]byte, headerSize, headerSize+bodySize)
+	img := make([]byte, headerSize+bodySize)
 	img[0] = 0x21                     // magic number
 	img[1] = 4                        // BPP
 	img[2] = byte(firefly.Width)      // width
@@ -55,7 +56,11 @@ func NewLoader(png firefly.File) (*Loader, error) {
 		img[5+i] = ((i * 2) << 4) | (i*2 + 1)
 	}
 
-	return &Loader{raw: img, reader: r}, nil
+	return &Loader{
+		raw:    img,
+		read:   headerSize,
+		reader: r,
+	}, nil
 }
 
 func (l *Loader) Close() {
@@ -63,18 +68,15 @@ func (l *Loader) Close() {
 }
 
 func (l *Loader) Next() (*firefly.Image, error) {
-
-	// pixels
-	frame, err := io.ReadAll(l.reader)
+	_, _ = l.reader.Read([]byte{0})
+	_, err := io.ReadFull(l.reader, l.raw[l.read:l.read+120])
 	if err != nil {
 		return nil, err
 	}
-	for len(frame) != 0 {
-		l.raw = append(l.raw, frame[1:121]...)
-		frame = frame[121:]
+	l.read += 120
+	if l.read >= len(l.raw) {
+		result := firefly.File{Raw: l.raw}.Image()
+		return &result, nil
 	}
-
-	result := firefly.File{Raw: l.raw}.Image()
-	return &result, nil
-
+	return nil, nil
 }

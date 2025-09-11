@@ -2,6 +2,7 @@ package main
 
 import (
 	"strconv"
+	"unsafe"
 
 	"github.com/firefly-zero/firefly-go/firefly"
 	"github.com/firefly-zero/firefly-go/firefly/sudo"
@@ -15,7 +16,6 @@ var (
 	// Updated on input
 	appIdx     int
 	shotIdx    int = 1
-	loader     *Loader
 	shot       *firefly.Image
 	showUI     bool
 	dirty      bool = true
@@ -44,36 +44,90 @@ func update() {
 	handleBtns(newBtns)
 	oldBtns = newBtns
 	wasTouched = isTouched
-	if dirty && shot == nil && loader == nil {
-		makeLoader(apps[appIdx], shotIdx)
-	} else {
-		advanceLoader()
+	if dirty && shot == nil && len(apps) != 0 {
+		loadShot(apps[appIdx], shotIdx)
 	}
+}
+
+func loadShot(app string, idx int) {
+	path := app + "/" + formatInt(idx) + ".ffs"
+	rawShot := sudo.LoadFile(path).Raw
+	if len(rawShot) == 0 {
+		return
+	}
+	if len(rawShot) != 0x4b31 {
+		firefly.LogDebug(strconv.FormatInt(int64(len(rawShot)), 16))
+		firefly.LogError("invalid file size")
+		return
+	}
+	if rawShot[0x00] != 0x41 {
+		firefly.LogError("invalid magic number")
+		return
+	}
+	setPalette(rawShot[0x01:0x31])
+	const headerSize = 5 + 8
+	image := rawShot[0x31-headerSize:]
+	image[0] = 0x21                      // magic number
+	image[1] = 4                         // BPP
+	image[2] = byte(firefly.Width)       // width
+	image[3] = byte(firefly.Height >> 8) // with
+	image[4] = 255                       // transparency
+
+	// color swaps
+	var i byte
+	for i = range 8 {
+		image[5+i] = ((i * 2) << 4) | (i*2 + 1)
+	}
+	switchIndianness(image[headerSize:])
+	img := firefly.File{Raw: image}.Image()
+	shot = &img
+}
+
+func switchIndianness(raw []uint8) {
+	for i, b := range raw {
+		raw[i] = (b << 4) | (b >> 4)
+	}
+}
+
+func setPalette(raw []uint8) {
+	for i := range 16 {
+		rgb := firefly.RGB{
+			R: raw[i*3],
+			G: raw[i*3+1],
+			B: raw[i*3+2],
+		}
+		firefly.SetColor(firefly.Color(i+1), rgb)
+	}
+}
+
+func formatInt(i int) string {
+	buf := []byte{
+		'0' + byte(i/100),
+		'0' + byte((i%100)/10),
+		'0' + byte(i%10),
+	}
+	return unsafe.String(&buf[0], 3)
 }
 
 func handlePad(newPad firefly.Pad) {
 	newDPad := newPad.DPad()
 	if newDPad.Left && shotIdx > 1 {
 		shot = nil
-		loader = nil
 		dirty = true
 		shotIdx -= 1
 	}
 	if newDPad.Right {
 		shot = nil
-		loader = nil
 		dirty = true
 		shotIdx += 1
 	}
 	if newDPad.Up && appIdx > 0 {
 		shot = nil
-		loader = nil
 		dirty = true
 		appIdx -= 1
 	}
 	if newDPad.Down && appIdx < len(apps)-1 {
 		shot = nil
-		loader = nil
 		dirty = true
 		appIdx += 1
 	}
@@ -122,7 +176,7 @@ func renderShot(app string, idx int) {
 				StrokeWidth: 1,
 			},
 		)
-		path := app + "/" + strconv.FormatInt(int64(idx), 10) + ".png"
+		path := app + "/" + formatInt(idx) + ".ffs"
 		firefly.DrawText(path, font, firefly.Point{X: 4, Y: 10}, firefly.ColorBlack)
 	}
 }
@@ -132,41 +186,11 @@ func listApps() []string {
 	for _, author := range sudo.ListDirs("data") {
 		for _, app := range sudo.ListDirs("data/" + author) {
 			dir := "data/" + author + "/" + app + "/shots"
-			hasShots := len(sudo.LoadFile(dir+"/1.png").Raw) != 0
+			hasShots := len(sudo.LoadFile(dir+"/001.ffs").Raw) != 0
 			if hasShots {
 				result = append(result, dir)
 			}
 		}
 	}
 	return result
-}
-
-func makeLoader(app string, idx int) {
-	path := app + "/" + strconv.FormatInt(int64(idx), 10) + ".png"
-	png := sudo.LoadFile(path)
-	l, err := NewLoader(png)
-	if err != nil {
-		firefly.LogError(err.Error())
-		return
-	}
-	loader = l
-}
-
-func advanceLoader() {
-	if loader == nil {
-		return
-	}
-	dirty = true
-	done, err := loader.Next()
-	if err != nil {
-		firefly.LogError(err.Error())
-		loader.Close()
-		return
-	}
-	shot = loader.Image()
-	if done {
-		loader.Close()
-		loader = nil
-		return
-	}
 }

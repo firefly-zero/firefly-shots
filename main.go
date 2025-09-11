@@ -45,16 +45,28 @@ func update() {
 	oldBtns = newBtns
 	wasTouched = isTouched
 	if dirty && shot == nil && len(apps) != 0 {
-		loadShot(apps[appIdx], shotIdx)
+		rawShot := loadRawShot(apps[appIdx], shotIdx)
+		// If trying to load a shot after the last one, loop around.
+		if rawShot == nil && shotIdx > 1 {
+			shotIdx = 1
+			rawShot = loadRawShot(apps[appIdx], shotIdx)
+		}
+		if rawShot != nil {
+			loadShot(rawShot)
+		}
 	}
 }
 
-func loadShot(app string, idx int) {
+func loadRawShot(app string, idx int) []uint8 {
 	path := app + "/" + formatInt(idx) + ".ffs"
 	rawShot := sudo.LoadFile(path).Raw
 	if len(rawShot) == 0 {
-		return
+		return nil
 	}
+	return rawShot
+}
+
+func loadShot(rawShot []uint8) {
 	if len(rawShot) != 0x4b31 {
 		firefly.LogDebug(strconv.FormatInt(int64(len(rawShot)), 16))
 		firefly.LogError("invalid file size")
@@ -160,7 +172,7 @@ func renderNoShots() {
 
 func renderShot(app string, idx int) {
 	firefly.ClearScreen(firefly.ColorBlack)
-	firefly.DrawText("Loading...", font, firefly.Point{X: 86, Y: 80}, firefly.ColorWhite)
+	firefly.DrawText("cannot load image", font, firefly.Point{X: 66, Y: 80}, firefly.ColorWhite)
 
 	if shot != nil {
 		firefly.DrawImage(*shot, firefly.Point{})

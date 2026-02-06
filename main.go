@@ -191,6 +191,7 @@ func listApps() []App {
 		for _, app := range sudo.ListDirs("data/" + author) {
 			dir := "data/" + author + "/" + app + "/shots"
 			shots := sudo.ListFiles(dir)
+			sort(shots)
 			if len(shots) != 0 {
 				result = append(result, App{
 					author: author,
@@ -201,4 +202,15 @@ func listApps() []App {
 		}
 	}
 	return result
+}
+
+// Bubble sort! Because stdlib sorting is too fat.
+func sort(items []string) {
+	for i := range len(items) - 1 {
+		for j := range len(items) - i - 1 {
+			if items[j] > items[j+1] {
+				items[j], items[j+1] = items[j+1], items[j]
+			}
+		}
+	}
 }

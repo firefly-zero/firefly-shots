@@ -6,8 +6,9 @@ import (
 )
 
 type App struct {
-	name  string
-	shots []string
+	author string
+	app    string
+	shots  []string
 }
 
 var (
@@ -55,7 +56,7 @@ func update() {
 }
 
 func loadRawShot(app App) []uint8 {
-	path := "data/" + app.name + "/shots/" + app.shots[shotIdx]
+	path := "data/" + app.author + "/" + app.app + "/shots/" + app.shots[shotIdx]
 	rawShot := sudo.LoadFile(path).Raw
 	if len(rawShot) == 0 {
 		return nil
@@ -179,7 +180,7 @@ func renderShot(app App) {
 				StrokeWidth: 1,
 			},
 		)
-		path := app.name + " " + app.shots[shotIdx][:3]
+		path := app.author + "." + app.app + " " + app.shots[shotIdx][:3]
 		firefly.DrawText(path, font, firefly.Point{X: 4, Y: 10}, firefly.ColorBlack)
 	}
 }
@@ -192,8 +193,9 @@ func listApps() []App {
 			shots := sudo.ListFiles(dir)
 			if len(shots) != 0 {
 				result = append(result, App{
-					name:  author + "/" + app,
-					shots: shots,
+					author: author,
+					app:    app,
+					shots:  shots,
 				})
 			}
 		}

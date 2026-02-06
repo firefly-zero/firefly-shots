@@ -1,21 +1,23 @@
 package main
 
 import (
-	"strconv"
-	"unsafe"
-
 	"github.com/firefly-zero/firefly-go/firefly"
 	"github.com/firefly-zero/firefly-go/firefly/sudo"
 )
 
+type App struct {
+	name  string
+	shots []string
+}
+
 var (
 	// Loaded on startup
-	apps []string
+	apps []App
 	font firefly.Font
 
 	// Updated on input
 	appIdx     int
-	shotIdx    int = 1
+	shotIdx    int
 	shot       *firefly.Image
 	showUI     bool
 	dirty      bool = true
@@ -45,20 +47,15 @@ func update() {
 	oldBtns = newBtns
 	wasTouched = isTouched
 	if dirty && shot == nil && len(apps) != 0 {
-		rawShot := loadRawShot(apps[appIdx], shotIdx)
-		// If trying to load a shot after the last one, loop around.
-		if rawShot == nil && shotIdx > 1 {
-			shotIdx = 1
-			rawShot = loadRawShot(apps[appIdx], shotIdx)
-		}
+		rawShot := loadRawShot(apps[appIdx])
 		if rawShot != nil {
 			loadShot(rawShot)
 		}
 	}
 }
 
-func loadRawShot(app string, idx int) []uint8 {
-	path := app + "/" + formatInt(idx) + ".ffs"
+func loadRawShot(app App) []uint8 {
+	path := "data/" + app.name + "/shots/" + app.shots[shotIdx]
 	rawShot := sudo.LoadFile(path).Raw
 	if len(rawShot) == 0 {
 		return nil
@@ -68,7 +65,6 @@ func loadRawShot(app string, idx int) []uint8 {
 
 func loadShot(rawShot []uint8) {
 	if len(rawShot) != 0x4b31 {
-		firefly.LogDebug(strconv.FormatInt(int64(len(rawShot)), 16))
 		firefly.LogError("invalid file size")
 		return
 	}
@@ -112,36 +108,31 @@ func setPalette(raw []uint8) {
 	}
 }
 
-func formatInt(i int) string {
-	buf := []byte{
-		'0' + byte(i/100),
-		'0' + byte((i%100)/10),
-		'0' + byte(i%10),
-	}
-	return unsafe.String(&buf[0], 3)
-}
-
 func handlePad(newPad firefly.Pad) {
-	newDPad := newPad.DPad()
-	if newDPad.Left && shotIdx > 1 {
+	newDPad := newPad.DPad4()
+	if newDPad != firefly.DPad4None {
 		shot = nil
 		dirty = true
-		shotIdx -= 1
 	}
-	if newDPad.Right {
-		shot = nil
-		dirty = true
-		shotIdx += 1
-	}
-	if newDPad.Up && appIdx > 0 {
-		shot = nil
-		dirty = true
-		appIdx -= 1
-	}
-	if newDPad.Down && appIdx < len(apps)-1 {
-		shot = nil
-		dirty = true
-		appIdx += 1
+	switch newDPad {
+	case firefly.DPad4Left:
+		if shotIdx > 0 {
+			shotIdx -= 1
+		}
+	case firefly.DPad4Right:
+		if shotIdx < len(apps[appIdx].shots)-1 {
+			shotIdx += 1
+		}
+	case firefly.DPad4Up:
+		if appIdx > 0 {
+			appIdx -= 1
+			shotIdx = 0
+		}
+	case firefly.DPad4Down:
+		if appIdx < len(apps)-1 {
+			appIdx += 1
+			shotIdx = 0
+		}
 	}
 }
 
@@ -161,7 +152,7 @@ func render() {
 	if len(apps) == 0 {
 		renderNoShots()
 	} else {
-		renderShot(apps[appIdx], shotIdx)
+		renderShot(apps[appIdx])
 	}
 }
 
@@ -170,7 +161,7 @@ func renderNoShots() {
 	firefly.DrawText("no screenshots", font, firefly.Point{X: 40, Y: 40}, firefly.ColorBlack)
 }
 
-func renderShot(app string, idx int) {
+func renderShot(app App) {
 	firefly.ClearScreen(firefly.ColorBlack)
 	firefly.DrawText("cannot load image", font, firefly.Point{X: 66, Y: 80}, firefly.ColorWhite)
 
@@ -188,19 +179,22 @@ func renderShot(app string, idx int) {
 				StrokeWidth: 1,
 			},
 		)
-		path := app + "/" + formatInt(idx) + ".ffs"
+		path := app.name + " " + app.shots[shotIdx][:3]
 		firefly.DrawText(path, font, firefly.Point{X: 4, Y: 10}, firefly.ColorBlack)
 	}
 }
 
-func listApps() []string {
-	result := make([]string, 0)
+func listApps() []App {
+	result := make([]App, 0)
 	for _, author := range sudo.ListDirs("data") {
 		for _, app := range sudo.ListDirs("data/" + author) {
 			dir := "data/" + author + "/" + app + "/shots"
-			hasShots := len(sudo.LoadFile(dir+"/001.ffs").Raw) != 0
-			if hasShots {
-				result = append(result, dir)
+			shots := sudo.ListFiles(dir)
+			if len(shots) != 0 {
+				result = append(result, App{
+					name:  author + "/" + app,
+					shots: shots,
+				})
 			}
 		}
 	}

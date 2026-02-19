@@ -57,7 +57,7 @@ func update() {
 
 func loadRawShot(app App) []uint8 {
 	path := "data/" + app.author + "/" + app.app + "/shots/" + app.shots[shotIdx]
-	rawShot := sudo.LoadFile(path).Raw
+	rawShot := sudo.LoadFile(path)
 	if len(rawShot) == 0 {
 		return nil
 	}
@@ -88,7 +88,7 @@ func loadShot(rawShot []uint8) {
 		image[5+i] = ((i * 2) << 4) | (i*2 + 1)
 	}
 	switchIndianness(image[headerSize:])
-	img := firefly.File{Raw: image}.Image()
+	img := firefly.File(image).Image()
 	shot = &img
 }
 

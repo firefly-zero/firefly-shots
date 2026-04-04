@@ -74,19 +74,13 @@ func loadShot(rawShot []uint8) {
 		return
 	}
 	setPalette(rawShot[0x01:0x31])
-	const headerSize = 5 + 8
+	const headerSize = 4
 	image := rawShot[0x31-headerSize:]
-	image[0] = 0x21                      // magic number
-	image[1] = 4                         // BPP
-	image[2] = byte(firefly.Width)       // width
-	image[3] = byte(firefly.Height >> 8) // with
-	image[4] = 255                       // transparency
+	image[0] = 0x22                      // magic number
+	image[1] = byte(firefly.Width)       // width
+	image[2] = byte(firefly.Height >> 8) // with
+	image[3] = 255                       // transparency
 
-	// color swaps
-	var i byte
-	for i = range 8 {
-		image[5+i] = ((i * 2) << 4) | (i*2 + 1)
-	}
 	switchIndianness(image[headerSize:])
 	img := firefly.File(image).Image()
 	shot = &img

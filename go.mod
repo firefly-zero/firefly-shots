@@ -1,7 +1,7 @@
 module firefly-shots
 
-go 1.24.0
+go 1.27.0
 
-require github.com/firefly-zero/firefly-go v0.12.0
+require github.com/firefly-zero/firefly-go v0.15.0
 
-require github.com/orsinium-labs/tinymath v1.1.0 // indirect
+require github.com/orsinium-labs/tinymath v1.2.1 // indirect

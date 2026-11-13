@@ -57,7 +57,7 @@ func update() {
 
 func loadRawShot(app App) []uint8 {
 	path := "data/" + app.author + "/" + app.app + "/shots/" + app.shots[shotIdx]
-	rawShot := sudo.LoadFile(path)
+	rawShot := sudo.LoadFile(path).Bytes()
 	if len(rawShot) == 0 {
 		return nil
 	}
@@ -81,15 +81,8 @@ func loadShot(rawShot []uint8) {
 	image[2] = byte(firefly.Height >> 8) // with
 	image[3] = 255                       // transparency
 
-	switchIndianness(image[headerSize:])
-	img := firefly.File(image).Image()
+	img := firefly.UnsafeFileFromBytes(image).Image()
 	shot = &img
-}
-
-func switchIndianness(raw []uint8) {
-	for i, b := range raw {
-		raw[i] = (b << 4) | (b >> 4)
-	}
 }
 
 func setPalette(raw []uint8) {
